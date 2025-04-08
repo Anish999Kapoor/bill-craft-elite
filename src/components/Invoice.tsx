@@ -1,9 +1,10 @@
-
 import React, { useState } from 'react';
 import FileUpload from './FileUpload';
 import InvoiceItem, { InvoiceItemType } from './InvoiceItem';
 import { Button } from "@/components/ui/button";
-import { Printer } from "lucide-react";
+import { Printer, FileText, Download } from "lucide-react";
+import generatePDF from '../utils/pdfGenerator';
+import { useToast } from '@/components/ui/use-toast';
 
 interface InvoiceProps {
   invoiceData: {
@@ -32,20 +33,66 @@ interface InvoiceProps {
 }
 
 const Invoice: React.FC<InvoiceProps> = ({ invoiceData }) => {
+  const { toast } = useToast();
   const [companyLogo, setCompanyLogo] = useState<File | null>(null);
   const [signature, setSignature] = useState<File | null>(null);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      setIsGeneratingPDF(true);
+      toast({
+        title: "Generating PDF",
+        description: "Please wait while we create your invoice PDF...",
+      });
+
+      // Generate PDF using our utility
+      const pdfData = {
+        ...invoiceData,
+        companyLogo,
+        signature
+      };
+      
+      const pdfUrl = await generatePDF(pdfData);
+      
+      // Create an anchor element and trigger the download
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = `Invoice-${invoiceData.poNo}.pdf`;
+      link.click();
+      
+      toast({
+        title: "PDF Generated",
+        description: "Your invoice PDF has been downloaded.",
+      });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
   };
 
   return (
     <div className="min-h-screen flex flex-col">
       <div className="flex justify-between items-center py-4 px-6 bg-white print:hidden">
         <h1 className="text-2xl font-bold text-invoice-dark">Invoice Generator</h1>
-        <Button onClick={handlePrint} className="bg-invoice-dark hover:bg-opacity-90">
-          <Printer className="mr-2 h-4 w-4" /> Print Invoice
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleDownloadPDF} disabled={isGeneratingPDF} className="bg-invoice-dark hover:bg-opacity-90">
+            <Download className="mr-2 h-4 w-4" /> {isGeneratingPDF ? 'Generating...' : 'Download PDF'}
+          </Button>
+          <Button onClick={handlePrint} className="bg-invoice-dark hover:bg-opacity-90">
+            <Printer className="mr-2 h-4 w-4" /> Print Invoice
+          </Button>
+        </div>
       </div>
 
       <div className="bg-white shadow-lg mx-auto my-8 max-w-5xl w-full p-8 print:shadow-none print:my-0 print:mx-0 print:max-w-none print:p-0" id="invoice">
