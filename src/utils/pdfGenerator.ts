@@ -156,12 +156,12 @@ const generatePDF = async (invoiceData: PDFInvoiceData): Promise<string> => {
       doc.text('Sub Total', 360, tableY + 20)
          .text(`IGST @ ${invoiceData.igstRate}%`, 360, tableY + 35)
          .text('Advance', 360, tableY + 50)
-         .text('Total', 360, tableY + 65, { fontWeight: 'bold' });
+         .text('Total', 360, tableY + 65);
 
       doc.text(invoiceData.subtotal.toFixed(2), 460, tableY + 20, { align: 'right' })
          .text(invoiceData.igstAmount.toFixed(2), 460, tableY + 35, { align: 'right' })
          .text(invoiceData.advance.toFixed(2), 460, tableY + 50, { align: 'right' })
-         .text(invoiceData.totalAmount.toFixed(2), 460, tableY + 65, { align: 'right', fontWeight: 'bold' });
+         .text(invoiceData.totalAmount.toFixed(2), 460, tableY + 65, { align: 'right' });
 
       // Add signature if available
       if (invoiceData.signature) {
