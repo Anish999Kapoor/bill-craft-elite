@@ -1,5 +1,6 @@
 
-import { jsPDF } from 'jspdf';
+// Direct import jsPDF to ensure it's being found correctly
+import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { InvoiceItemType } from '../components/InvoiceItem';
 
@@ -33,6 +34,7 @@ const generatePDF = async (invoiceData: PDFInvoiceData): Promise<string> => {
   return new Promise(async (resolve, reject) => {
     try {
       // Create a document - A4 is 210 x 297 mm
+      // Changed from { jsPDF } to jsPDF direct import
       const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
