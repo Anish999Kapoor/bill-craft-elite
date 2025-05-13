@@ -55,10 +55,10 @@ const generatePDF = async (invoiceData: PDFInvoiceData): Promise<string> => {
         }
       }
 
-      // Add header
+      // Add header - Changed "Purchase Order" to "Delivery Schedule"
       doc.fontSize(24)
          .fillColor(primaryColor)
-         .text('Purchase Order', { align: 'right' })
+         .text('Delivery Schedule', { align: 'right' })
          .fontSize(10)
          .text(`PO No: ${invoiceData.poNo}`, { align: 'right' })
          .text(`PO Date: ${invoiceData.poDate}`, { align: 'right' })
@@ -105,24 +105,23 @@ const generatePDF = async (invoiceData: PDFInvoiceData): Promise<string> => {
          .text(`Payment Terms: ${invoiceData.paymentTerms}`, 50, clientYStart + 175)
          .moveDown(2);
 
-      // Item Details table header
+      // Item Details table header - Changed to "Item Wise Delivery Schedule:"
       const tableTop = doc.y;
       doc.fontSize(10)
          .fillColor(primaryColor)
-         .text('Item Details:', 50, tableTop)
+         .text('Item Wise Delivery Schedule:', 50, tableTop)
          .rect(50, tableTop + 15, doc.page.width - 100, 20)
          .fill(primaryColor);
 
-      // Table headers
+      // Updated table headers to match the new structure
       doc.fillColor('white')
          .text('S. NO.', 60, tableTop + 20)
          .text('PARTICULARS', 110, tableTop + 20)
-         .text('HSN CODE', 250, tableTop + 20)
-         .text('QUANTITY', 320, tableTop + 20)
-         .text('RATE', 400, tableTop + 20)
-         .text('AMOUNT(Rs.)', 460, tableTop + 20);
+         .text('TOTAL QUANTITY', 250, tableTop + 20)
+         .text('DELIVERY DATE', 350, tableTop + 20)
+         .text('QUANTITY TO DELIVERY', 460, tableTop + 20);
 
-      // Table rows
+      // Table rows - Adjusted for the new column structure
       let tableY = tableTop + 40;
       
       invoiceData.items.forEach((item, index) => {
@@ -141,10 +140,9 @@ const generatePDF = async (invoiceData: PDFInvoiceData): Promise<string> => {
         doc.fillColor('black')
            .text(item.id.toString(), 60, tableY)
            .text(item.particulars.replace(/\n/g, ' '), 110, tableY, { width: 130 })
-           .text(item.hsnCode, 250, tableY)
-           .text(item.quantity.replace(/\n/g, ' '), 320, tableY)
-           .text((item.rate?.toFixed(2) || '0.00'), 400, tableY)
-           .text((item.amount?.toFixed(2) || '0.00'), 460, tableY);
+           .text(item.quantity.replace(/\n/g, ' '), 250, tableY)
+           .text(item.deliveryDate || invoiceData.deliveryDate, 350, tableY)
+           .text(item.quantityToDelivery || item.quantity, 460, tableY);
 
         tableY += 25;
       });
