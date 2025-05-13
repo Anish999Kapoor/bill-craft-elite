@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import FileUpload from './FileUpload';
 import InvoiceItem, { InvoiceItemType } from './InvoiceItem';
@@ -178,7 +179,7 @@ const Invoice: React.FC<InvoiceProps> = ({ invoiceData }) => {
               <tr className="bg-invoice-dark text-white">
                 <th className="px-4 py-3 text-left text-sm font-semibold">S. NO.</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold">PARTICULARS</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold">HSN CODE</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold">DELIVERY SCHEDULE</th>
                 <th className="px-4 py-3 text-center text-sm font-semibold">QUANTITY</th>
                 <th className="px-4 py-3 text-right text-sm font-semibold">RATE</th>
                 <th className="px-4 py-3 text-right text-sm font-semibold">AMOUNT(Rs.)</th>
