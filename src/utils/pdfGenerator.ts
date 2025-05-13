@@ -1,7 +1,12 @@
-
 import PDFDocument from 'pdfkit';
 import blobStream from 'blob-stream';
 import { InvoiceItemType } from '../components/InvoiceItem';
+
+// Add browser polyfill
+if (typeof window !== 'undefined') {
+  // @ts-ignore
+  window.Buffer = window.Buffer || require('buffer/').Buffer;
+}
 
 interface PDFInvoiceData {
   companyName: string;
@@ -33,7 +38,9 @@ const generatePDF = async (invoiceData: PDFInvoiceData): Promise<string> => {
   return new Promise(async (resolve, reject) => {
     try {
       // Create a document
+      // @ts-ignore - Ignore TypeScript errors related to browser compatibility
       const doc = new PDFDocument({ margin: 50 });
+      // @ts-ignore
       const stream = doc.pipe(blobStream());
 
       // Define colors
@@ -49,6 +56,7 @@ const generatePDF = async (invoiceData: PDFInvoiceData): Promise<string> => {
           const logoUrl = URL.createObjectURL(invoiceData.companyLogo);
           const logoResponse = await fetch(logoUrl);
           const logoBuffer = await logoResponse.arrayBuffer();
+          // @ts-ignore
           doc.image(Buffer.from(logoBuffer), 50, 50, { width: 100 });
         } catch (err) {
           console.error("Error adding logo to PDF:", err);
