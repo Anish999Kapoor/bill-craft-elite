@@ -1,12 +1,7 @@
-import PDFDocument from 'pdfkit';
-import blobStream from 'blob-stream';
-import { InvoiceItemType } from '../components/InvoiceItem';
 
-// Add browser polyfill
-if (typeof window !== 'undefined') {
-  // @ts-ignore
-  window.Buffer = window.Buffer || require('buffer/').Buffer;
-}
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { InvoiceItemType } from '../components/InvoiceItem';
 
 interface PDFInvoiceData {
   companyName: string;
@@ -37,177 +32,196 @@ interface PDFInvoiceData {
 const generatePDF = async (invoiceData: PDFInvoiceData): Promise<string> => {
   return new Promise(async (resolve, reject) => {
     try {
-      // Create a document
-      // @ts-ignore - Ignore TypeScript errors related to browser compatibility
-      const doc = new PDFDocument({ margin: 50 });
-      // @ts-ignore
-      const stream = doc.pipe(blobStream());
+      // Create a document - A4 is 210 x 297 mm
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
 
       // Define colors
       const primaryColor = '#0C1D49';
       const secondaryColor = '#EAF6FF';
-
+      
       // Set up fonts
-      doc.font('Helvetica');
+      doc.setFont('helvetica');
 
       // Add company logo if available
       if (invoiceData.companyLogo) {
         try {
           const logoUrl = URL.createObjectURL(invoiceData.companyLogo);
-          const logoResponse = await fetch(logoUrl);
-          const logoBuffer = await logoResponse.arrayBuffer();
-          // @ts-ignore
-          doc.image(Buffer.from(logoBuffer), 50, 50, { width: 100 });
+          const logoImg = await loadImage(logoUrl);
+          doc.addImage(logoImg, 'JPEG', 20, 20, 40, 20);
         } catch (err) {
           console.error("Error adding logo to PDF:", err);
         }
       }
 
-      // Add header - Changed "Purchase Order" to "Delivery Schedule"
-      doc.fontSize(24)
-         .fillColor(primaryColor)
-         .text('Delivery Schedule', { align: 'right' })
-         .fontSize(10)
-         .text(`PO No: ${invoiceData.poNo}`, { align: 'right' })
-         .text(`PO Date: ${invoiceData.poDate}`, { align: 'right' })
-         .text(`Ref No: ${invoiceData.refNo}`, { align: 'right' })
-         .moveDown(1);
+      // Add header - "Delivery Schedule"
+      doc.setFontSize(24);
+      doc.setTextColor(primaryColor);
+      doc.text('Delivery Schedule', 190, 25, { align: 'right' });
+      doc.setFontSize(10);
+      doc.text(`PO No: ${invoiceData.poNo}`, 190, 32, { align: 'right' });
+      doc.text(`PO Date: ${invoiceData.poDate}`, 190, 37, { align: 'right' });
+      doc.text(`Ref No: ${invoiceData.refNo}`, 190, 42, { align: 'right' });
 
       // Add company details
-      doc.fontSize(12)
-         .fillColor(primaryColor)
-         .text(invoiceData.companyName, 50, 120)
-         .fontSize(10)
-         .fillColor('black')
-         .text(invoiceData.companyAddress)
-         .text(`GSTIN: ${invoiceData.gstin}`)
-         .text(`PAN NO: ${invoiceData.panNo}`)
-         .moveDown(1);
-
-      // Add client details (in a box with light background)
-      doc.rect(50, doc.y, 250, 80)
-         .fill(secondaryColor)
-         .fillColor('black');
+      doc.setFontSize(12);
+      doc.setTextColor(primaryColor);
+      doc.text(invoiceData.companyName, 20, 50);
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
       
-      const clientYStart = doc.y - 75;
-      doc.text('Issued to:', 60, clientYStart)
-         .fontSize(11)
-         .text(invoiceData.clientName, 60, clientYStart + 15)
-         .fontSize(9)
-         .text(invoiceData.clientAddress, 60, clientYStart + 30)
-         .text(`GSTIN: ${invoiceData.clientGstin}`, 60, clientYStart + 60);
-
-      // Add shipping details
-      doc.rect(50, clientYStart + 90, doc.page.width - 100, 60)
-         .fill(secondaryColor)
-         .fillColor('black');
+      const companyAddressLines = invoiceData.companyAddress.split('\n');
+      let yPos = 55;
+      companyAddressLines.forEach(line => {
+        doc.text(line, 20, yPos);
+        yPos += 5;
+      });
       
-      doc.text('Shipped to:', 60, clientYStart + 95)
-         .fontSize(9)
-         .text(invoiceData.shippedTo, 60, clientYStart + 110, { width: doc.page.width - 120 });
+      doc.text(`GSTIN: ${invoiceData.gstin}`, 20, yPos + 5);
+      doc.text(`PAN NO: ${invoiceData.panNo}`, 20, yPos + 10);
 
-      // Add delivery and payment terms
-      doc.fontSize(10)
-         .fillColor('black')
-         .text(`Delivery Date: ${invoiceData.deliveryDate}`, 50, clientYStart + 160)
-         .text(`Payment Terms: ${invoiceData.paymentTerms}`, 50, clientYStart + 175)
-         .moveDown(2);
-
-      // Item Details table header - Changed to "Item Wise Delivery Schedule:"
-      const tableTop = doc.y;
-      doc.fontSize(10)
-         .fillColor(primaryColor)
-         .text('Item Wise Delivery Schedule:', 50, tableTop)
-         .rect(50, tableTop + 15, doc.page.width - 100, 20)
-         .fill(primaryColor);
-
-      // Updated table headers to match the new structure
-      doc.fillColor('white')
-         .text('S. NO.', 60, tableTop + 20)
-         .text('PARTICULARS', 110, tableTop + 20)
-         .text('TOTAL QUANTITY', 250, tableTop + 20)
-         .text('DELIVERY DATE', 350, tableTop + 20)
-         .text('QUANTITY TO DELIVERY', 460, tableTop + 20);
-
-      // Table rows - Adjusted for the new column structure
-      let tableY = tableTop + 40;
+      // Add client details with light background
+      doc.setFillColor(parseInt(secondaryColor.substring(1, 3), 16), 
+                     parseInt(secondaryColor.substring(3, 5), 16), 
+                     parseInt(secondaryColor.substring(5, 7), 16));
+      doc.rect(20, yPos + 20, 80, 30, 'F');
+      doc.setTextColor(0, 0, 0);
+      doc.text('Issued to:', 25, yPos + 25);
+      doc.setFontSize(11);
+      doc.text(invoiceData.clientName, 25, yPos + 30);
+      doc.setFontSize(9);
       
-      invoiceData.items.forEach((item, index) => {
-        // Check if we need a new page
-        if (tableY > doc.page.height - 150) {
-          doc.addPage();
-          tableY = 50;
-        }
+      const clientAddressLines = invoiceData.clientAddress.split('\n');
+      let clientYPos = yPos + 35;
+      clientAddressLines.forEach(line => {
+        doc.text(line, 25, clientYPos);
+        clientYPos += 4;
+      });
+      
+      doc.text(`GSTIN: ${invoiceData.clientGstin}`, 25, yPos + 45);
 
-        // Add alternating row background
-        if (index % 2 === 0) {
-          doc.rect(50, tableY - 5, doc.page.width - 100, 25)
-             .fill(secondaryColor);
-        }
-
-        doc.fillColor('black')
-           .text(item.id.toString(), 60, tableY)
-           .text(item.particulars.replace(/\n/g, ' '), 110, tableY, { width: 130 })
-           .text(item.quantity.replace(/\n/g, ' '), 250, tableY)
-           .text(item.deliveryDate || invoiceData.deliveryDate, 350, tableY)
-           .text(item.quantityToDelivery || item.quantity, 460, tableY);
-
-        tableY += 25;
+      // Add shipping details with light background
+      doc.setFillColor(parseInt(secondaryColor.substring(1, 3), 16), 
+                     parseInt(secondaryColor.substring(3, 5), 16), 
+                     parseInt(secondaryColor.substring(5, 7), 16));
+      doc.rect(20, yPos + 55, 170, 25, 'F');
+      doc.text('Shipped to:', 25, yPos + 60);
+      doc.setFontSize(9);
+      
+      const shippedToLines = invoiceData.shippedTo.split('\n');
+      let shippedYPos = yPos + 65;
+      shippedToLines.forEach(line => {
+        doc.text(line, 25, shippedYPos, { maxWidth: 160 });
+        shippedYPos += 4;
       });
 
-      // Add totals
-      doc.rect(350, tableY + 10, doc.page.width - 400, 80)
-         .stroke();
-      
-      doc.text('Sub Total', 360, tableY + 20)
-         .text(`IGST @ ${invoiceData.igstRate}%`, 360, tableY + 35)
-         .text('Advance', 360, tableY + 50)
-         .text('Total', 360, tableY + 65);
+      // Add delivery and payment terms
+      doc.setFontSize(10);
+      doc.text(`Delivery Date: ${invoiceData.deliveryDate}`, 20, yPos + 85);
+      doc.text(`Payment Terms: ${invoiceData.paymentTerms}`, 20, yPos + 90);
 
-      doc.text(invoiceData.subtotal.toFixed(2), 460, tableY + 20, { align: 'right' })
-         .text(invoiceData.igstAmount.toFixed(2), 460, tableY + 35, { align: 'right' })
-         .text(invoiceData.advance.toFixed(2), 460, tableY + 50, { align: 'right' })
-         .text(invoiceData.totalAmount.toFixed(2), 460, tableY + 65, { align: 'right' });
+      // Item Details table header - "Item Wise Delivery Schedule:"
+      const tableTop = yPos + 100;
+      doc.setFontSize(10);
+      doc.setTextColor(primaryColor);
+      doc.text('Item Wise Delivery Schedule:', 20, tableTop);
+
+      // Create table for items using autotable plugin
+      const tableData = invoiceData.items.map(item => [
+        item.id.toString(),
+        item.particulars,
+        item.quantity,
+        item.deliveryDate || invoiceData.deliveryDate,
+        item.quantityToDelivery || item.quantity
+      ]);
+
+      autoTable(doc, {
+        head: [['S. NO.', 'PARTICULARS', 'TOTAL QUANTITY', 'DELIVERY DATE', 'QUANTITY TO DELIVERY']],
+        body: tableData,
+        startY: tableTop + 5,
+        headStyles: { 
+          fillColor: [parseInt(primaryColor.substring(1, 3), 16), 
+                     parseInt(primaryColor.substring(3, 5), 16), 
+                     parseInt(primaryColor.substring(5, 7), 16)],
+          textColor: [255, 255, 255]
+        },
+        alternateRowStyles: {
+          fillColor: [parseInt(secondaryColor.substring(1, 3), 16), 
+                     parseInt(secondaryColor.substring(3, 5), 16), 
+                     parseInt(secondaryColor.substring(5, 7), 16)]
+        },
+        styles: { fontSize: 9 },
+        columnStyles: {
+          0: { cellWidth: 15 },
+          1: { cellWidth: 60 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 50 }
+        }
+      });
+
+      // Get the Y position after the table
+      const finalY = (doc as any).lastAutoTable.finalY + 10;
+
+      // Add totals
+      doc.setTextColor(0, 0, 0);
+      doc.text('Sub Total', 130, finalY + 10);
+      doc.text(`IGST @ ${invoiceData.igstRate}%`, 130, finalY + 20);
+      doc.text('Advance', 130, finalY + 30);
+      doc.text('Total', 130, finalY + 40);
+
+      doc.text(invoiceData.subtotal.toFixed(2), 190, finalY + 10, { align: 'right' });
+      doc.text(invoiceData.igstAmount.toFixed(2), 190, finalY + 20, { align: 'right' });
+      doc.text(invoiceData.advance.toFixed(2), 190, finalY + 30, { align: 'right' });
+      doc.text(invoiceData.totalAmount.toFixed(2), 190, finalY + 40, { align: 'right' });
 
       // Add signature if available
       if (invoiceData.signature) {
         try {
           const signatureUrl = URL.createObjectURL(invoiceData.signature);
-          const signatureResponse = await fetch(signatureUrl);
-          const signatureBuffer = await signatureResponse.arrayBuffer();
-          doc.image(Buffer.from(signatureBuffer), 400, tableY + 100, { width: 80 });
+          const signImg = await loadImage(signatureUrl);
+          doc.addImage(signImg, 'JPEG', 150, finalY + 50, 30, 15);
         } catch (err) {
           console.error("Error adding signature to PDF:", err);
         }
       }
 
-      doc.text('Authorised Signatory', 400, tableY + 140, { align: 'center' });
+      doc.text('Authorised Signatory', 165, finalY + 70, { align: 'center' });
 
       // Add terms and contact information
-      doc.moveDown(4)
-         .fontSize(9)
-         .text(invoiceData.contactDetails, 50, doc.y)
-         .text(invoiceData.emailDetails)
-         .moveDown(1)
-         .text('Terms and conditions:')
-         .text(invoiceData.shippedTo);
-
-      // Finalize PDF file
-      doc.end();
-
-      stream.on('finish', () => {
-        // Get the blob URL and return it
-        const url = stream.toBlobURL('application/pdf');
-        resolve(url);
+      doc.setFontSize(9);
+      doc.text(invoiceData.contactDetails, 20, finalY + 85);
+      doc.text(invoiceData.emailDetails, 20, finalY + 90);
+      doc.text('Terms and conditions:', 20, finalY + 95);
+      
+      const termsLines = invoiceData.shippedTo.split('\n').slice(0, 3); // Limit terms to avoid going off page
+      let termsYPos = finalY + 100;
+      termsLines.forEach(line => {
+        doc.text(line, 20, termsYPos, { maxWidth: 170 });
+        termsYPos += 4;
       });
 
-      stream.on('error', (err) => {
-        reject(err);
-      });
+      // Generate PDF as blob URL
+      const pdfBlob = doc.output('blob');
+      const url = URL.createObjectURL(pdfBlob);
+      resolve(url);
     } catch (err) {
       console.error("Error generating PDF:", err);
       reject(err);
     }
+  });
+};
+
+// Helper function to convert image URL to Image object
+const loadImage = (url: string): Promise<HTMLImageElement> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
   });
 };
 
