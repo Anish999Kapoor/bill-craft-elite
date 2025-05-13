@@ -91,3 +91,64 @@ export async function downloadPDF(blob: Blob, fileName: string): Promise<void> {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
+// Function to add a new delivery date for an existing item
+export function addDeliveryDateToItem(
+  items: DeliveryItem[],
+  itemId: number,
+  newDeliveryDate: string,
+  newQuantityToDelivery: string
+): DeliveryItem[] {
+  // Create a copy of the items array
+  const updatedItems = [...items];
+  
+  // Find the original item to copy its details
+  const originalItem = items.find(item => item.id === itemId);
+  
+  if (originalItem) {
+    // Create a new delivery entry for the same item
+    const newDeliveryItem: DeliveryItem = {
+      id: itemId,
+      particulars: originalItem.particulars,
+      totalQuantity: originalItem.totalQuantity,
+      deliveryDate: newDeliveryDate,
+      quantityToDelivery: newQuantityToDelivery
+    };
+    
+    // Add to the items array
+    updatedItems.push(newDeliveryItem);
+  }
+  
+  return updatedItems;
+}
+
+// Function to validate that total quantities match across delivery dates
+export function validateDeliveryQuantities(items: DeliveryItem[]): boolean {
+  // Group items by ID
+  const groupedItems = new Map<number, DeliveryItem[]>();
+  items.forEach(item => {
+    if (!groupedItems.has(item.id)) {
+      groupedItems.set(item.id, []);
+    }
+    groupedItems.get(item.id)?.push(item);
+  });
+  
+  // Check each group
+  for (const [_, groupItems] of groupedItems.entries()) {
+    if (groupItems.length > 0) {
+      const totalQty = parseInt(groupItems[0].totalQuantity) || 0;
+      let deliveryQtySum = 0;
+      
+      groupItems.forEach(item => {
+        deliveryQtySum += parseInt(item.quantityToDelivery) || 0;
+      });
+      
+      // If sum of delivery quantities doesn't match total quantity, return false
+      if (deliveryQtySum !== totalQty) {
+        return false;
+      }
+    }
+  }
+  
+  return true;
+}
